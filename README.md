@@ -30,3 +30,20 @@ gcloud compute networks subnets create $REGION_2-pos \
     --network=$VPC \
     --range=172.16.20.0/24
 ```
+
+### deploy services
+
+```
+kubectl --context=$KUBECTX_1 create namespace service-a
+kubectl --context=$KUBECTX_2 create namespace service-a
+
+kubectl --context=$KUBECTX_1 create namespace service-b
+kubectl --context=$KUBECTX_2 create namespace service-b
+
+kubectl --context=$KUBECTX_1 apply -k whereami/service-a
+kubectl --context=$KUBECTX_2 apply -k whereami/service-a
+
+kubectl --context=$KUBECTX_1 apply -k whereami/service-b
+kubectl --context=$KUBECTX_2 apply -k whereami/service-b
+
+```

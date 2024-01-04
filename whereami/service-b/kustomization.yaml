@@ -1,0 +1,13 @@
+nameSuffix: "-service-b"
+namespace: service-b
+commonLabels:
+  app: whereami-service-b
+resources:
+- ../base
+patches:
+- path: cm-flag.yaml
+  target:
+    kind: ConfigMap
+- path: service-type.yaml
+  target:
+    kind: Service
