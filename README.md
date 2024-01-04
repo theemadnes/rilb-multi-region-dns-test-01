@@ -45,5 +45,6 @@ kubectl --context=$KUBECTX_2 apply -k whereami/service-a
 
 kubectl --context=$KUBECTX_1 apply -k whereami/service-b
 kubectl --context=$KUBECTX_2 apply -k whereami/service-b
-
 ```
+
+### set up load balancers
