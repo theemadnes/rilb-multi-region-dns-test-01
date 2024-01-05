@@ -162,7 +162,7 @@ gcloud compute firewall-rules create fw-allow-health-check \
     --direction=ingress \
     --target-tags=allow-health-check \
     --source-ranges=130.211.0.0/22,35.191.0.0/16 \
-    --rules=tcp:80
+    --rules=tcp:8080
 
 gcloud resource-manager tags keys create allow-proxy-only-subnet \
     --parent=projects/$PROJECT \
@@ -170,11 +170,11 @@ gcloud resource-manager tags keys create allow-proxy-only-subnet \
     --purpose-data=network=$PROJECT/$VPC
 
 gcloud container clusters update $CLUSTER_1 \
-    --autoprovisioning-network-tags="allow-proxy-only-subnet" \
+    --autoprovisioning-network-tags="allow-proxy-only-subnet","allow-health-check" \
     --region $REGION_1
 
 gcloud container clusters update $CLUSTER_2 \
-    --autoprovisioning-network-tags="allow-proxy-only-subnet" \
+    --autoprovisioning-network-tags="allow-proxy-only-subnet","allow-health-check" \
     --region $REGION_2
 
 gcloud compute firewall-rules create fw-allow-proxy-only-subnet \
@@ -217,24 +217,9 @@ gcloud compute backend-services create service-b \
   --global
 
 # add backends
-#gcloud compute backend-services add-backend service-a \
-#  --global \
-#  --balancing-mode=RATE \
-#  --max-rate-per-endpoint=10000 \
-#  --network-endpoint-group=whereami-service-a-neg \
-#  --network-endpoint-group-zone=$REGION_1-a \
-#  --network-endpoint-group=whereami-service-a-neg \
-#  --network-endpoint-group-zone=$REGION_1-b \
-#  --network-endpoint-group=whereami-service-a-neg \
-#  --network-endpoint-group-zone=$REGION_1-c \
-#  --network-endpoint-group=whereami-service-a-neg \
-#  --network-endpoint-group-zone=$REGION_2-a \
-#  --network-endpoint-group=whereami-service-a-neg \
-#  --network-endpoint-group-zone=$REGION_2-b \
-#  --network-endpoint-group=whereami-service-a-neg \
-#  --network-endpoint-group-zone=$REGION_2-c
 
-for ZONE in $REGION_1-a $REGION_1-b $REGION_1-c $REGION_2-a $REGION_2-b $REGION_2-c
+### has to be a better way to do this...
+for ZONE in $REGION_1-a $REGION_1-b $REGION_1-c $REGION_1-d $REGION_1-e $REGION_1-f $REGION_2-a $REGION_2-b $REGION_2-c $REGION_2-d $REGION_2-e $REGION_2-f
 do
 	gcloud compute backend-services add-backend service-a \
     --global \
@@ -244,24 +229,7 @@ do
     --network-endpoint-group-zone=$ZONE
 done
 
-#gcloud compute backend-services add-backend service-b \
-#  --global \
-#  --balancing-mode=RATE \
-#  --max-rate-per-endpoint=10000 \
-#  --network-endpoint-group=whereami-service-b-neg \
-#  --network-endpoint-group-zone=$REGION_1-a \
-#  --network-endpoint-group=whereami-service-b-neg \
-#  --network-endpoint-group-zone=$REGION_1-b \
-#  --network-endpoint-group=whereami-service-b-neg \
-#  --network-endpoint-group-zone=$REGION_1-c \
-#  --network-endpoint-group=whereami-service-b-neg \
-#  --network-endpoint-group-zone=$REGION_2-a \
-#  --network-endpoint-group=whereami-service-b-neg \
-#  --network-endpoint-group-zone=$REGION_2-b \
-#  --network-endpoint-group=whereami-service-b-neg \
-#  --network-endpoint-group-zone=$REGION_2-c
-
-for ZONE in $REGION_1-a $REGION_1-b $REGION_1-c $REGION_2-a $REGION_2-b $REGION_2-c
+for ZONE in $REGION_1-a $REGION_1-b $REGION_1-c $REGION_1-d $REGION_1-e $REGION_1-f $REGION_2-a $REGION_2-b $REGION_2-c $REGION_2-d $REGION_2-e $REGION_2-f
 do
 	gcloud compute backend-services add-backend service-b \
     --global \
@@ -310,10 +278,12 @@ kubectl --context=$KUBECTX_1 -n service-a scale --replicas=0 deployment/whereami
 kubectl --context=$KUBECTX_1 -n service-b scale --replicas=0 deployment/whereami-service-b
 
 # testing after failover 
-curl -v --header "Host: service-a.internal.example.com" http://10.128.0.38
-curl -v --header "Host: service-b.internal.example.com" http://10.128.0.38
+curl -v --header "Host: service-a.internal.example.com" http://$(gcloud compute forwarding-rules describe gil7-forwarding-rule-$REGION_1 --global --format json | jq ".IPAddress" | tr -d '"')
+curl -v --header "Host: service-b.internal.example.com" http://$(gcloud compute forwarding-rules describe gil7-forwarding-rule-$REGION_1 --global --format json | jq ".IPAddress" | tr -d '"')
 
-# restory replicas
+# restore replicas
 kubectl --context=$KUBECTX_1 -n service-a scale --replicas=3 deployment/whereami-service-a
+kubectl --context=$KUBECTX_2 -n service-a scale --replicas=3 deployment/whereami-service-a
 kubectl --context=$KUBECTX_1 -n service-b scale --replicas=3 deployment/whereami-service-b
+kubectl --context=$KUBECTX_2 -n service-b scale --replicas=3 deployment/whereami-service-b
 ```
