@@ -34,6 +34,9 @@ gcloud compute networks subnets create $REGION_2-pos \
 ### deploy services
 
 ```
+kubectl --context=$KUBECTX_1 create namespace gateway
+kubectl --context=$KUBECTX_2 create namespace gateway
+
 kubectl --context=$KUBECTX_1 create namespace service-a
 kubectl --context=$KUBECTX_2 create namespace service-a
 
