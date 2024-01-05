@@ -9,7 +9,7 @@ spec:
     name: internal-http
     namespace: gateway
   hostnames:
-  - "service-a.example.com"
+  - "service-a.internal.example.com"
   rules:
   - backendRefs:
     - name: whereami-service-a

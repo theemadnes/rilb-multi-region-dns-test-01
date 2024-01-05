@@ -1,5 +1,5 @@
 # rilb-multi-region-dns-test-01
-testing using Cloud DNS to provide failover for multiple services on GKE across multiple regions 
+testing using Cloud DNS to provide failover for multiple services on GKE across multiple regions. this demo uses the `default` VPC, which is not recommended for production.
 
 ### setup 
 
@@ -64,8 +64,8 @@ kubectl --context=$KUBECTX_1 apply -f httproute/service-a-httproute.yaml
 kubectl --context=$KUBECTX_2 apply -f httproute/service-a-httproute.yaml
 
 # testing for my local project VMs
-curl -v --header "Host: service-a.example.com" http://10.128.0.24 # region_1
-curl -v --header "Host: service-a.example.com" http://10.150.0.25 # region_2
+curl -v --header "Host: service-a.internal.example.com" http://10.128.0.24 # region_1
+curl -v --header "Host: service-a.internal.example.com" http://10.150.0.25 # region_2
 ```
 
 ### create HTTPRoutes for service-b
@@ -75,6 +75,20 @@ kubectl --context=$KUBECTX_1 apply -f httproute/service-b-httproute.yaml
 kubectl --context=$KUBECTX_2 apply -f httproute/service-b-httproute.yaml
 
 # testing for my local project VMs
-curl -v --header "Host: service-b.example.com" http://10.128.0.24 # region_1
-curl -v --header "Host: service-b.example.com" http://10.150.0.25 # region_2
+curl -v --header "Host: service-b.internal.example.com" http://10.128.0.24 # region_1
+curl -v --header "Host: service-b.internal.example.com" http://10.150.0.25 # region_2
+```
+
+### create DNS zone
+
+```
+gcloud dns --project=$PROJECT managed-zones create geotest --description="" --dns-name="internal.example.com." --visibility="private" --networks="https://www.googleapis.com/compute/v1/projects/${PROJECT}/global/networks/${VPC}"
+```
+
+### create geolocated DNS records
+
+```
+gcloud dns --project=$PROJECT record-sets create service-a.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn" # replace forwarding rules with your own
+
+gcloud dns --project=$PROJECT record-sets create service-b.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn" # replace forwarding rules with your own
 ```
