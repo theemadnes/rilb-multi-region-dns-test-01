@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: whereami-service-b-neg
+  namespace: service-b
+  annotations:
+    cloud.google.com/neg: '{"exposed_ports": {"80":{"name": "whereami-service-b-neg"}}}'
+spec:
+  type: ClusterIP
+  selector:
+    app: whereami-service-b
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080

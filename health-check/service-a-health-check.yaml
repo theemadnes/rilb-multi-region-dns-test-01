@@ -1,0 +1,17 @@
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: service-a-health-check
+  namespace: service-a
+spec:
+  default:
+    config:
+      httpHealthCheck:
+        port: 8080
+        portSpecification: USE_FIXED_PORT
+        requestPath: /
+      type: HTTP
+  targetRef:
+    group: ""
+    kind: Service
+    name: whereami-service-a

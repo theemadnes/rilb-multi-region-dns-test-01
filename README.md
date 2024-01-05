@@ -8,6 +8,8 @@ export PROJECT=e2m-private-test-01
 export VPC=default
 export REGION_1=us-central1
 export REGION_2=us-east4
+export CLUSTER_1=edge-to-mesh-01
+export CLUSTER_2=edge-to-mesh-02
 export KUBECTX_1=gke_e2m-private-test-01_us-central1_edge-to-mesh-01
 export KUBECTX_2=gke_e2m-private-test-01_us-east4_edge-to-mesh-02
 gcloud config set project $PROJECT
@@ -121,4 +123,197 @@ $ curl http://service-a.internal.example.com -v
 * Connection #0 to host service-a.internal.example.com left intact
 
 # hmmm not failing over....
+```
+
+### scratch
+
+```
+# test health check for service-a
+kubectl --context=$KUBECTX_1 apply -f health-check/service-a-health-check.yaml
+kubectl --context=$KUBECTX_2 apply -f health-check/service-a-health-check.yaml
+
+# test health check for service-b
+kubectl --context=$KUBECTX_1 apply -f health-check/service-b-health-check.yaml
+kubectl --context=$KUBECTX_2 apply -f health-check/service-b-health-check.yaml
+```
+
+### testing cross region internal ALB
+
+```
+# create proxy subnets for x-region ALB
+gcloud compute networks subnets create $REGION_1-x-pos \
+    --purpose=GLOBAL_MANAGED_PROXY \
+    --role=ACTIVE \
+    --region=$REGION_1 \
+    --network=$VPC \
+    --range=172.16.30.0/24
+
+gcloud compute networks subnets create $REGION_2-x-pos \
+    --purpose=GLOBAL_MANAGED_PROXY \
+    --role=ACTIVE \
+    --region=$REGION_2 \
+    --network=$VPC \
+    --range=172.16.40.0/24
+
+# create FW rules for x-region ALB
+gcloud compute firewall-rules create fw-allow-health-check \
+    --network=$VPC \
+    --action=allow \
+    --direction=ingress \
+    --target-tags=allow-health-check \
+    --source-ranges=130.211.0.0/22,35.191.0.0/16 \
+    --rules=tcp:80
+
+gcloud resource-manager tags keys create allow-proxy-only-subnet \
+    --parent=projects/$PROJECT \
+    --purpose=GCE_FIREWALL \
+    --purpose-data=network=$PROJECT/$VPC
+
+gcloud container clusters update $CLUSTER_1 \
+    --autoprovisioning-network-tags="allow-proxy-only-subnet" \
+    --region $REGION_1
+
+gcloud container clusters update $CLUSTER_2 \
+    --autoprovisioning-network-tags="allow-proxy-only-subnet" \
+    --region $REGION_2
+
+gcloud compute firewall-rules create fw-allow-proxy-only-subnet \
+    --network=$VPC \
+    --action=allow \
+    --direction=ingress \
+    --target-tags=allow-proxy-only-subnet \
+    --source-ranges=172.16.30.0/24,172.16.40.0/24 \
+    --rules=tcp:8080
+
+# create HTTP health check for x-region iALB
+gcloud compute health-checks create http gil7-basic-check \
+   --use-serving-port \
+   --global
+
+# create services 
+kubectl --context=$KUBECTX_1 apply -f service-negs/service-a-neg.yaml
+kubectl --context=$KUBECTX_2 apply -f service-negs/service-a-neg.yaml
+
+kubectl --context=$KUBECTX_1 apply -f service-negs/service-b-neg.yaml
+kubectl --context=$KUBECTX_2 apply -f service-negs/service-b-neg.yaml
+
+# create LB backend services
+gcloud compute backend-services create service-a \
+  --load-balancing-scheme=INTERNAL_MANAGED \
+  --protocol=HTTP \
+  --enable-logging \
+  --logging-sample-rate=1.0 \
+  --health-checks=gil7-basic-check \
+  --global-health-checks \
+  --global
+
+gcloud compute backend-services create service-b \
+  --load-balancing-scheme=INTERNAL_MANAGED \
+  --protocol=HTTP \
+  --enable-logging \
+  --logging-sample-rate=1.0 \
+  --health-checks=gil7-basic-check \
+  --global-health-checks \
+  --global
+
+# add backends
+#gcloud compute backend-services add-backend service-a \
+#  --global \
+#  --balancing-mode=RATE \
+#  --max-rate-per-endpoint=10000 \
+#  --network-endpoint-group=whereami-service-a-neg \
+#  --network-endpoint-group-zone=$REGION_1-a \
+#  --network-endpoint-group=whereami-service-a-neg \
+#  --network-endpoint-group-zone=$REGION_1-b \
+#  --network-endpoint-group=whereami-service-a-neg \
+#  --network-endpoint-group-zone=$REGION_1-c \
+#  --network-endpoint-group=whereami-service-a-neg \
+#  --network-endpoint-group-zone=$REGION_2-a \
+#  --network-endpoint-group=whereami-service-a-neg \
+#  --network-endpoint-group-zone=$REGION_2-b \
+#  --network-endpoint-group=whereami-service-a-neg \
+#  --network-endpoint-group-zone=$REGION_2-c
+
+for ZONE in $REGION_1-a $REGION_1-b $REGION_1-c $REGION_2-a $REGION_2-b $REGION_2-c
+do
+	gcloud compute backend-services add-backend service-a \
+    --global \
+    --balancing-mode=RATE \
+    --max-rate-per-endpoint=10000 \
+    --network-endpoint-group=whereami-service-a-neg \
+    --network-endpoint-group-zone=$ZONE
+done
+
+#gcloud compute backend-services add-backend service-b \
+#  --global \
+#  --balancing-mode=RATE \
+#  --max-rate-per-endpoint=10000 \
+#  --network-endpoint-group=whereami-service-b-neg \
+#  --network-endpoint-group-zone=$REGION_1-a \
+#  --network-endpoint-group=whereami-service-b-neg \
+#  --network-endpoint-group-zone=$REGION_1-b \
+#  --network-endpoint-group=whereami-service-b-neg \
+#  --network-endpoint-group-zone=$REGION_1-c \
+#  --network-endpoint-group=whereami-service-b-neg \
+#  --network-endpoint-group-zone=$REGION_2-a \
+#  --network-endpoint-group=whereami-service-b-neg \
+#  --network-endpoint-group-zone=$REGION_2-b \
+#  --network-endpoint-group=whereami-service-b-neg \
+#  --network-endpoint-group-zone=$REGION_2-c
+
+for ZONE in $REGION_1-a $REGION_1-b $REGION_1-c $REGION_2-a $REGION_2-b $REGION_2-c
+do
+	gcloud compute backend-services add-backend service-b \
+    --global \
+    --balancing-mode=RATE \
+    --max-rate-per-endpoint=10000 \
+    --network-endpoint-group=whereami-service-b-neg \
+    --network-endpoint-group-zone=$ZONE
+done
+
+# create URL map
+gcloud compute url-maps create gil7-map \
+  --default-service=service-a \
+  --global
+
+gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-a --default-service=service-a
+gcloud compute url-maps add-host-rule gil7-map --hosts='service-a.internal.example.com' --path-matcher-name=service-a
+gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-b --default-service=service-b --new-hosts='service-b.internal.example.com'
+
+# create target proxy
+gcloud compute target-http-proxies create gil7-http-proxy \
+  --url-map=gil7-map \
+  --global
+
+# create forwarding rule
+
+gcloud compute forwarding-rules create gil7-forwarding-rule-$REGION_1 \
+  --load-balancing-scheme=INTERNAL_MANAGED \
+  --network=$VPC \
+  --subnet=default \
+  --subnet-region=$REGION_1 \
+  --ports=80 \
+  --target-http-proxy=gil7-http-proxy \
+  --global
+
+gcloud compute forwarding-rules create gil7-forwarding-rule-$REGION_2 \
+  --load-balancing-scheme=INTERNAL_MANAGED \
+  --network=$VPC \
+  --subnet=default \
+  --subnet-region=$REGION_2 \
+  --ports=80 \
+  --target-http-proxy=gil7-http-proxy \
+  --global
+
+# testing failure
+kubectl --context=$KUBECTX_1 -n service-a scale --replicas=0 deployment/whereami-service-a
+kubectl --context=$KUBECTX_1 -n service-b scale --replicas=0 deployment/whereami-service-b
+
+# testing after failover 
+curl -v --header "Host: service-a.internal.example.com" http://10.128.0.38
+curl -v --header "Host: service-b.internal.example.com" http://10.128.0.38
+
+# restory replicas
+kubectl --context=$KUBECTX_1 -n service-a scale --replicas=3 deployment/whereami-service-a
+kubectl --context=$KUBECTX_1 -n service-b scale --replicas=3 deployment/whereami-service-b
 ```
