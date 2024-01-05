@@ -63,7 +63,7 @@ kubectl --context=$KUBECTX_2 apply -f gateway/ # create gateway resource and ena
 kubectl --context=$KUBECTX_1 apply -f httproute/service-a-httproute.yaml
 kubectl --context=$KUBECTX_2 apply -f httproute/service-a-httproute.yaml
 
-# testing for my local project VMs
+# testing for my local project VMs (replace ILB VIPs with your own)
 curl -v --header "Host: service-a.internal.example.com" http://10.128.0.24 # region_1
 curl -v --header "Host: service-a.internal.example.com" http://10.150.0.25 # region_2
 ```
@@ -74,7 +74,7 @@ curl -v --header "Host: service-a.internal.example.com" http://10.150.0.25 # reg
 kubectl --context=$KUBECTX_1 apply -f httproute/service-b-httproute.yaml
 kubectl --context=$KUBECTX_2 apply -f httproute/service-b-httproute.yaml
 
-# testing for my local project VMs
+# testing for my local project VMs (replace ILB VIPs with your own)
 curl -v --header "Host: service-b.internal.example.com" http://10.128.0.24 # region_1
 curl -v --header "Host: service-b.internal.example.com" http://10.150.0.25 # region_2
 ```
@@ -88,7 +88,21 @@ gcloud dns --project=$PROJECT managed-zones create geotest --description="" --dn
 ### create geolocated DNS records
 
 ```
-gcloud dns --project=$PROJECT record-sets create service-a.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn" # replace forwarding rules with your own
+gcloud dns --project=$PROJECT record-sets create service-a.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn" # replace forwarding rule names with your own
 
-gcloud dns --project=$PROJECT record-sets create service-b.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn" # replace forwarding rules with your own
+gcloud dns --project=$PROJECT record-sets create service-b.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn" # replace forwarding rule names with your own
+
+# testing for my local project VMs (check from VMs in each region)
+curl http://service-a.internal.example.com
+curl http://service-b.internal.example.com
+```
+
+### test failover
+
+```
+# testing from region_1, so killing service-a pods in region_1
+kubectl --context=$KUBECTX_1 -n service-a scale --replicas=0 deployment/whereami-service-a
+
+
+
 ```
