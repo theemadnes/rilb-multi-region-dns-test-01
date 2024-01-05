@@ -103,6 +103,22 @@ curl http://service-b.internal.example.com
 # testing from region_1, so killing service-a pods in region_1
 kubectl --context=$KUBECTX_1 -n service-a scale --replicas=0 deployment/whereami-service-a
 
+$ curl http://service-a.internal.example.com -v 
+*   Trying 10.128.0.24:80...
+* Connected to service-a.internal.example.com (10.128.0.24) port 80 (#0)
+> GET / HTTP/1.1
+> Host: service-a.internal.example.com
+> User-Agent: curl/7.74.0
+> Accept: */*
+> 
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 503 Service Unavailable
+< content-length: 19
+< content-type: text/plain
+< date: Fri, 05 Jan 2024 02:48:23 GMT
+< via: 1.1 google
+< 
+* Connection #0 to host service-a.internal.example.com left intact
 
-
+# hmmm not failing over....
 ```
