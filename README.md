@@ -51,3 +51,30 @@ kubectl --context=$KUBECTX_2 apply -k whereami/service-b
 ```
 
 ### set up load balancers
+
+```
+kubectl --context=$KUBECTX_1 apply -f gateway/ # create gateway resource and enable global access policy
+kubectl --context=$KUBECTX_2 apply -f gateway/ # create gateway resource and enable global access policy
+```
+
+### create HTTPRoutes for service-a
+
+```
+kubectl --context=$KUBECTX_1 apply -f httproute/service-a-httproute.yaml
+kubectl --context=$KUBECTX_2 apply -f httproute/service-a-httproute.yaml
+
+# testing for my local project VMs
+curl -v --header "Host: service-a.example.com" http://10.128.0.24 # region_1
+curl -v --header "Host: service-a.example.com" http://10.150.0.25 # region_2
+```
+
+### create HTTPRoutes for service-b
+
+```
+kubectl --context=$KUBECTX_1 apply -f httproute/service-b-httproute.yaml
+kubectl --context=$KUBECTX_2 apply -f httproute/service-b-httproute.yaml
+
+# testing for my local project VMs
+curl -v --header "Host: service-b.example.com" http://10.128.0.24 # region_1
+curl -v --header "Host: service-b.example.com" http://10.150.0.25 # region_2
+```

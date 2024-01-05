@@ -1,0 +1,16 @@
+kind: HTTPRoute
+apiVersion: gateway.networking.k8s.io/v1beta1
+metadata:
+  name: service-b
+  namespace: service-b
+spec:
+  parentRefs:
+  - kind: Gateway
+    name: internal-http
+    namespace: gateway
+  hostnames:
+  - "service-b.example.com"
+  rules:
+  - backendRefs:
+    - name: whereami-service-b
+      port: 80
