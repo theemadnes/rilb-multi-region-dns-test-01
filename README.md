@@ -132,7 +132,7 @@ $ curl http://service-a.internal.example.com -v
 attempting service-level failover using [x-region ALB](https://cloud.google.com/load-balancing/docs/l7-internal#cross-region-failover), following steps documented [here](https://cloud.google.com/load-balancing/docs/l7-internal/setting-up-l7-cross-reg-hybrid) (but using traditional IP-port standalone [NEGs](https://cloud.google.com/kubernetes-engine/docs/how-to/standalone-neg))
 
 ```
-# create proxy subnets for x-region ALB
+# create proxy subnets for x-region ALB - these have a different `purpose` (`GLOBAL_MANAGED_PROXY` vs `REGIONAL_MANAGED_PROXY``) than the proxy subnets for the regional ALBs
 gcloud compute networks subnets create $REGION_1-x-pos \
     --purpose=GLOBAL_MANAGED_PROXY \
     --role=ACTIVE \
