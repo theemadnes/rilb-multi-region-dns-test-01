@@ -90,9 +90,11 @@ gcloud dns --project=$PROJECT managed-zones create geotest --description="" --dn
 ### create geolocated DNS records
 
 ```
-gcloud dns --project=$PROJECT record-sets create service-a.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn" # replace forwarding rule names with your own
+# NOTE: replace forwarding rule names with your own
+gcloud dns --project=$PROJECT record-sets create service-a.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn"
 
-gcloud dns --project=$PROJECT record-sets create service-b.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn" # replace forwarding rule names with your own
+# NOTE: replace forwarding rule names with your own
+gcloud dns --project=$PROJECT record-sets create service-b.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/regions/${REGION_1}/forwardingRules/gkegw1-s67w-gateway-internal-http-v276ajbysrz2;${REGION_2}=projects/${PROJECT}/regions/${REGION_2}/forwardingRules/gkegw1-owtg-gateway-internal-http-n2zw5w650pmn"
 
 # testing for my local project VMs (check from VMs in each region)
 curl http://service-a.internal.example.com
@@ -125,19 +127,9 @@ $ curl http://service-a.internal.example.com -v
 # hmmm not failing over....
 ```
 
-### scratch
-
-```
-# test health check for service-a
-kubectl --context=$KUBECTX_1 apply -f health-check/service-a-health-check.yaml
-kubectl --context=$KUBECTX_2 apply -f health-check/service-a-health-check.yaml
-
-# test health check for service-b
-kubectl --context=$KUBECTX_1 apply -f health-check/service-b-health-check.yaml
-kubectl --context=$KUBECTX_2 apply -f health-check/service-b-health-check.yaml
-```
-
 ### testing cross region internal ALB
+
+attempting service-level failover using [x-region ALB](https://cloud.google.com/load-balancing/docs/l7-internal#cross-region-failover), following steps documented [here](https://cloud.google.com/load-balancing/docs/l7-internal/setting-up-l7-cross-reg-hybrid) (but using traditional IP-port standalone [NEGs](https://cloud.google.com/kubernetes-engine/docs/how-to/standalone-neg))
 
 ```
 # create proxy subnets for x-region ALB
@@ -190,6 +182,10 @@ gcloud compute health-checks create http gil7-basic-check \
    --use-serving-port \
    --global
 
+# (optional but recommmended: if using GKE autopilot mode:
+# follow issuetracker.google.com/228379727 to 'pre-warm' Aupilot clusters to
+# use all available zones in region so NEGs are evenly distributed)
+
 # create services 
 kubectl --context=$KUBECTX_1 apply -f service-negs/service-a-neg.yaml
 kubectl --context=$KUBECTX_2 apply -f service-negs/service-a-neg.yaml
@@ -218,7 +214,7 @@ gcloud compute backend-services create service-b \
 
 # add backends
 
-### has to be a better way to do this...
+### hack-y way to get the negs added to the backend services
 for ZONE in $REGION_1-a $REGION_1-b $REGION_1-c $REGION_1-d $REGION_1-e $REGION_1-f $REGION_2-a $REGION_2-b $REGION_2-c $REGION_2-d $REGION_2-e $REGION_2-f
 do
 	gcloud compute backend-services add-backend service-a \
@@ -278,12 +274,26 @@ kubectl --context=$KUBECTX_1 -n service-a scale --replicas=0 deployment/whereami
 kubectl --context=$KUBECTX_1 -n service-b scale --replicas=0 deployment/whereami-service-b
 
 # testing after failover 
-curl -v --header "Host: service-a.internal.example.com" http://$(gcloud compute forwarding-rules describe gil7-forwarding-rule-$REGION_1 --global --format json | jq ".IPAddress" | tr -d '"')
-curl -v --header "Host: service-b.internal.example.com" http://$(gcloud compute forwarding-rules describe gil7-forwarding-rule-$REGION_1 --global --format json | jq ".IPAddress" | tr -d '"')
+#curl -v --header "Host: service-a.internal.example.com" http://$(gcloud compute forwarding-rules describe gil7-forwarding-rule-$REGION_1 --global --format json | jq ".IPAddress" | tr -d '"')
+curl -v --header "Host: service-a.internal.example.com" http://10.128.0.38
+#curl -v --header "Host: service-b.internal.example.com" http://$(gcloud compute forwarding-rules describe gil7-forwarding-rule-$REGION_1 --global --format json | jq ".IPAddress" | tr -d '"')
+curl -v --header "Host: service-a.internal.example.com" http://10.150.0.39
 
 # restore replicas
 kubectl --context=$KUBECTX_1 -n service-a scale --replicas=3 deployment/whereami-service-a
 kubectl --context=$KUBECTX_2 -n service-a scale --replicas=3 deployment/whereami-service-a
 kubectl --context=$KUBECTX_1 -n service-b scale --replicas=3 deployment/whereami-service-b
 kubectl --context=$KUBECTX_2 -n service-b scale --replicas=3 deployment/whereami-service-b
+```
+
+### scratch / ignore
+
+```
+# test health check for service-a
+kubectl --context=$KUBECTX_1 apply -f health-check/service-a-health-check.yaml
+kubectl --context=$KUBECTX_2 apply -f health-check/service-a-health-check.yaml
+
+# test health check for service-b
+kubectl --context=$KUBECTX_1 apply -f health-check/service-b-health-check.yaml
+kubectl --context=$KUBECTX_2 apply -f health-check/service-b-health-check.yaml
 ```
