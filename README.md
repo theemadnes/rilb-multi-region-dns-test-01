@@ -242,9 +242,10 @@ gcloud compute url-maps create gil7-map \
 
 #gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-a --default-service=service-a
 #gcloud compute url-maps add-host-rule gil7-map --hosts='service-a.internal.example.com' --path-matcher-name=service-a
+#gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-b --default-service=service-b --new-hosts='service-b.internal.example.com'
 gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-a-xr --default-service=service-a --new-hosts='service-a-xr.internal.example.com'
 gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-b-xr --default-service=service-b --new-hosts='service-b-xr.internal.example.com'
-#gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-b --default-service=service-b --new-hosts='service-b.internal.example.com'
+
 
 # create target proxy
 gcloud compute target-http-proxies create gil7-http-proxy \
