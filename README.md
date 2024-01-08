@@ -240,9 +240,11 @@ gcloud compute url-maps create gil7-map \
   --default-service=service-a \
   --global
 
-gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-a --default-service=service-a
-gcloud compute url-maps add-host-rule gil7-map --hosts='service-a.internal.example.com' --path-matcher-name=service-a
-gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-b --default-service=service-b --new-hosts='service-b.internal.example.com'
+#gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-a --default-service=service-a
+#gcloud compute url-maps add-host-rule gil7-map --hosts='service-a.internal.example.com' --path-matcher-name=service-a
+gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-a-xr --default-service=service-a --new-hosts='service-a-xr.internal.example.com'
+gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-b-xr --default-service=service-b --new-hosts='service-b-xr.internal.example.com'
+#gcloud compute url-maps add-path-matcher gil7-map --path-matcher-name=service-b --default-service=service-b --new-hosts='service-b.internal.example.com'
 
 # create target proxy
 gcloud compute target-http-proxies create gil7-http-proxy \
@@ -250,7 +252,6 @@ gcloud compute target-http-proxies create gil7-http-proxy \
   --global
 
 # create forwarding rule
-
 gcloud compute forwarding-rules create gil7-forwarding-rule-$REGION_1 \
   --load-balancing-scheme=INTERNAL_MANAGED \
   --network=$VPC \
@@ -269,15 +270,22 @@ gcloud compute forwarding-rules create gil7-forwarding-rule-$REGION_2 \
   --target-http-proxy=gil7-http-proxy \
   --global
 
+# configure Cloud DNS records for the x-region ALB (using existing DNS zone)
+gcloud dns --project=e2m-private-test-01 record-sets create service-a-xr.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/e2m-private-test-01/global/forwardingRules/gil7-forwarding-rule-${REGION_1};${REGION_2}=projects/e2m-private-test-01/global/forwardingRules/gil7-forwarding-rule-${REGION_2}"
+
+gcloud dns --project=e2m-private-test-01 record-sets create service-b-xr.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/e2m-private-test-01/global/forwardingRules/gil7-forwarding-rule-${REGION_1};${REGION_2}=projects/e2m-private-test-01/global/forwardingRules/gil7-forwarding-rule-${REGION_2}"
+
 # testing failure
 kubectl --context=$KUBECTX_1 -n service-a scale --replicas=0 deployment/whereami-service-a
 kubectl --context=$KUBECTX_1 -n service-b scale --replicas=0 deployment/whereami-service-b
 
 # testing after failover 
 #curl -v --header "Host: service-a.internal.example.com" http://$(gcloud compute forwarding-rules describe gil7-forwarding-rule-$REGION_1 --global --format json | jq ".IPAddress" | tr -d '"')
-curl -v --header "Host: service-a.internal.example.com" http://10.128.0.38
+#curl -v --header "Host: service-a.internal.example.com" http://10.128.0.38
 #curl -v --header "Host: service-b.internal.example.com" http://$(gcloud compute forwarding-rules describe gil7-forwarding-rule-$REGION_1 --global --format json | jq ".IPAddress" | tr -d '"')
-curl -v --header "Host: service-a.internal.example.com" http://10.150.0.39
+#curl -v --header "Host: service-a.internal.example.com" http://10.150.0.39
+curl -v http://service-a-xr.internal.example.com
+curl -v http://service-b-xr.internal.example.com
 
 # restore replicas
 kubectl --context=$KUBECTX_1 -n service-a scale --replicas=3 deployment/whereami-service-a
