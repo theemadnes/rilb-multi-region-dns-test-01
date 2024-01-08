@@ -275,9 +275,9 @@ gcloud compute forwarding-rules create gil7-forwarding-rule-$REGION_2 \
   --global
 
 # configure Cloud DNS records for the x-region ALB (using existing DNS zone)
-gcloud dns --project=e2m-private-test-01 record-sets create service-a-xr.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/e2m-private-test-01/global/forwardingRules/gil7-forwarding-rule-${REGION_1};${REGION_2}=projects/e2m-private-test-01/global/forwardingRules/gil7-forwarding-rule-${REGION_2}"
+gcloud dns --project=${PROJECT} record-sets create service-a-xr.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/global/forwardingRules/gil7-forwarding-rule-${REGION_1};${REGION_2}=projects/${PROJECT}/global/forwardingRules/gil7-forwarding-rule-${REGION_2}"
 
-gcloud dns --project=e2m-private-test-01 record-sets create service-b-xr.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/e2m-private-test-01/global/forwardingRules/gil7-forwarding-rule-${REGION_1};${REGION_2}=projects/e2m-private-test-01/global/forwardingRules/gil7-forwarding-rule-${REGION_2}"
+gcloud dns --project=${PROJECT} record-sets create service-b-xr.internal.example.com. --zone="geotest" --type="A" --ttl="5" --routing-policy-type="GEO" --enable-health-checking --routing-policy-data="${REGION_1}=projects/${PROJECT}/global/forwardingRules/gil7-forwarding-rule-${REGION_1};${REGION_2}=projects/${PROJECT}/global/forwardingRules/gil7-forwarding-rule-${REGION_2}"
 
 # testing failure
 kubectl --context=$KUBECTX_1 -n service-a scale --replicas=0 deployment/whereami-service-a
