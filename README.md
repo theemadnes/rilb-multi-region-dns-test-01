@@ -185,6 +185,9 @@ gcloud compute health-checks create http gil7-basic-check \
 # (optional but recommmended: if using GKE autopilot mode:
 # follow issuetracker.google.com/228379727 to 'pre-warm' Aupilot clusters to
 # use all available zones in region so NEGs are evenly distributed)
+# Why? Because if not, you might not have all zones represented when you
+# add the NEGs to the backend services below, so when your services scales 
+# you're potentially not able to send traffic to all active zones.
 
 # create services 
 kubectl --context=$KUBECTX_1 apply -f service-negs/service-a-neg.yaml
